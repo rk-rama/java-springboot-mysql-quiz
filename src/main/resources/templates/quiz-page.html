@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Quiz Session</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .question-container { display: none; }
+        .active { display: block; }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+    <div class="d-flex justify-content-between border-bottom pb-3 mb-4">
+        <h2 th:text="${category != null ? category.toUpperCase() + ' QUIZ' : 'QUIZ'}">Category</h2>
+        <h2 class="text-danger">Timer: <span id="timer-min">60</span>:<span id="timer-sec">00</span></h2>
+    </div>
+
+    <form id="quizForm" th:action="@{/submitQuiz}" method="post">
+        <div th:each="q, iter : ${questions}" th:class="${iter.index == 0} ? 'question-container active' : 'question-container'" th:id="'q-' + ${iter.index}">
+            <div class="card p-4 shadow-sm border-0">
+                <h4 class="mb-4" th:text="'Q' + ${iter.count} + ': ' + ${q[0]}">Question</h4>
+
+                <div th:each="i : ${#numbers.sequence(1, 4)}" class="form-check border p-3 rounded mb-2">
+                    <input class="form-check-input ms-1" type="radio" th:name="'q' + ${iter.index}" th:value="${q[i]}" required>
+                    <label class="form-check-label ms-4" th:text="${q[i]}"></label>
+                </div>
+
+                <div class="mt-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-info" onclick="toggleAnswer(this)">Show/Hide Answer</button>
+                    <span class="ans-text d-none fw-bold text-success" th:text="'Ans: ' + ${q[5]}"></span>
+
+                    <div>
+                        <button type="button" class="btn btn-secondary me-2" th:if="${iter.index > 0}" th:onclick="'showPrev(' + ${iter.index} + ')'">Previous</button>
+                        <button type="button" class="btn btn-primary" th:if="${!iter.last}" th:onclick="'showNext(' + ${iter.index} + ')'">Next</button>
+                        <button type="submit" class="btn btn-success" th:if="${iter.last}">Finish Quiz</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    let timeLeft = 3600;
+    const timerInterval = setInterval(() => {
+        if(timeLeft > 0) {
+            timeLeft--;
+            let mins = Math.floor(timeLeft / 60);
+            let secs = timeLeft % 60;
+            document.getElementById('timer-min').innerText = mins;
+            document.getElementById('timer-sec').innerText = secs < 10 ? '0' + secs : secs;
+        } else {
+            clearInterval(timerInterval);
+            document.getElementById('quizForm').submit();
+        }
+    }, 1000);
+
+    function showNext(curr) {
+        document.getElementById('q-'+curr).classList.remove('active');
+        document.getElementById('q-'+(curr+1)).classList.add('active');
+    }
+    function showPrev(curr) {
+        document.getElementById('q-'+curr).classList.remove('active');
+        document.getElementById('q-'+(curr-1)).classList.add('active');
+    }
+    function toggleAnswer(btn) {
+        btn.nextElementSibling.classList.toggle('d-none');
+    }
+</script>
+</body>
+</html>
