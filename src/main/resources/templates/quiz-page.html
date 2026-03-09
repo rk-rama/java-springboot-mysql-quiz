@@ -1,60 +1,135 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>Quiz Session</title>
+    <title>AI Secure Quiz</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <style>
         .question-container { display: none; }
         .active { display: block; }
+        #webcam-container { position: fixed; bottom: 20px; right: 20px; width: 180px; height: 135px; border: 3px solid #dc3545; border-radius: 10px; overflow: hidden; z-index: 2000; background: #000; display: none; }
+        #webcam-feed { width: 100%; height: 100%; object-fit: cover; }
+        body { user-select: none; }
     </style>
 </head>
 <body class="bg-light">
+
+<div id="webcam-container">
+    <video id="webcam-feed" autoplay playsinline muted></video>
+</div>
+
 <div class="container mt-5">
-    <div class="d-flex justify-content-between border-bottom pb-3 mb-4">
-        <h2 th:text="${category != null ? category.toUpperCase() + ' QUIZ' : 'QUIZ'}">Category</h2>
-        <h2 class="text-danger">Timer: <span id="timer-min">60</span>:<span id="timer-sec">00</span></h2>
+    <div id="start-notice" class="alert alert-info text-center p-5 shadow">
+        <h3>AI Proctoring System</h3>
+        <p>AI Models load ho rahe hain, kripya intezar karein...</p>
+        <button id="startBtn" class="btn btn-danger btn-lg" onclick="startProctoredExam()" disabled>Please Wait...</button>
     </div>
 
-    <form id="quizForm" th:action="@{/submitQuiz}" method="post">
-        <div th:each="q, iter : ${questions}" th:class="${iter.index == 0} ? 'question-container active' : 'question-container'" th:id="'q-' + ${iter.index}">
-            <div class="card p-4 shadow-sm border-0">
-                <h4 class="mb-4" th:text="'Q' + ${iter.count} + ': ' + ${q[0]}">Question</h4>
+    <div id="quiz-content" style="display: none;">
+        <div class="d-flex justify-content-between border-bottom pb-3 mb-4">
+            <h2 th:text="${category != null ? category.toUpperCase() + ' QUIZ' : 'QUIZ'}">Category</h2>
+            <h2 class="text-danger">Time: <span id="timer-display">60:00</span></h2>
+        </div>
 
-                <div th:each="i : ${#numbers.sequence(1, 4)}" class="form-check border p-3 rounded mb-2">
-                    <input class="form-check-input ms-1" type="radio" th:name="'q' + ${iter.index}" th:value="${q[i]}" required>
-                    <label class="form-check-label ms-4" th:text="${q[i]}"></label>
-                </div>
+        <form id="quizForm" th:action="@{/submitQuiz}" method="post">
+            <div th:each="q, iter : ${questions}" th:class="${iter.index == 0} ? 'question-container active' : 'question-container'" th:id="'q-' + ${iter.index}">
+                <div class="card p-4 shadow-sm border-0">
+                    <h4 class="mb-4" th:text="'Q' + ${iter.count} + ': ' + ${q[0]}">Question</h4>
 
-                <div class="mt-4 d-flex justify-content-between">
-                    <button type="button" class="btn btn-info" onclick="toggleAnswer(this)">Show/Hide Answer</button>
-                    <span class="ans-text d-none fw-bold text-success" th:text="'Ans: ' + ${q[5]}"></span>
+                    <div th:each="i : ${#numbers.sequence(1, 4)}" class="form-check border p-3 rounded mb-2">
+                        <input class="form-check-input ms-1" type="radio" th:name="'q' + ${iter.index}" th:value="${q[i]}" required>
+                        <label class="form-check-label ms-4" th:text="${q[i]}"></label>
+                    </div>
 
-                    <div>
-                        <button type="button" class="btn btn-secondary me-2" th:if="${iter.index > 0}" th:onclick="'showPrev(' + ${iter.index} + ')'">Previous</button>
-                        <button type="button" class="btn btn-primary" th:if="${!iter.last}" th:onclick="'showNext(' + ${iter.index} + ')'">Next</button>
-                        <button type="submit" class="btn btn-success" th:if="${iter.last}">Finish Quiz</button>
+                    <div class="mt-4 d-flex justify-content-between">
+                        <button type="button" class="btn btn-info btn-sm" onclick="toggleHint(this)">Show Hint</button>
+                        <span class="ans-text d-none fw-bold text-success" th:text="'Hint: ' + ${q[5]}"></span>
+
+                        <div>
+                            <button type="button" class="btn btn-secondary me-2" th:if="${iter.index > 0}" th:onclick="'showPrev(' + ${iter.index} + ')'">Prev</button>
+                            <button type="button" class="btn btn-primary" th:if="${!iter.last}" th:onclick="'showNext(' + ${iter.index} + ')'">Next</button>
+                            <button type="submit" class="btn btn-success" th:if="${iter.last}">Finish</button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </form>
+        </form>
+    </div>
 </div>
 
 <script>
-    let timeLeft = 3600;
-    const timerInterval = setInterval(() => {
-        if(timeLeft > 0) {
-            timeLeft--;
-            let mins = Math.floor(timeLeft / 60);
-            let secs = timeLeft % 60;
-            document.getElementById('timer-min').innerText = mins;
-            document.getElementById('timer-sec').innerText = secs < 10 ? '0' + secs : secs;
-        } else {
-            clearInterval(timerInterval);
-            document.getElementById('quizForm').submit();
-        }
-    }, 1000);
+    let timeLeft = 3600; // 60 minutes
+    let isSecure = false;
+    let faceMissingCount = 0;
+    const video = document.getElementById('webcam-feed');
 
+    // 1. Load Models
+    window.onload = async () => {
+        try {
+            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').innerText = "Start Exam Now";
+        } catch (e) {
+            alert("AI models load nahi ho paye. Check internet.");
+        }
+    };
+
+    // 2. Start Exam
+    async function startProctoredExam() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            document.getElementById('webcam-container').style.display = 'block';
+            document.getElementById('start-notice').style.display = 'none';
+            document.getElementById('quiz-content').style.display = 'block';
+
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            }
+
+            isSecure = true;
+            startTimer();
+            monitorFace();
+        } catch (err) {
+            alert("Camera permission required!");
+        }
+    }
+
+    // 3. Timer Logic
+    function startTimer() {
+        setInterval(() => {
+            if(timeLeft > 0 && isSecure) {
+                timeLeft--;
+                let m = Math.floor(timeLeft / 60);
+                let s = timeLeft % 60;
+                document.getElementById('timer-display').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+            } else if (timeLeft <= 0) {
+                document.getElementById("quizForm").submit();
+            }
+        }, 1000);
+    }
+
+    // 4. Face Monitor with Grace Period
+    async function monitorFace() {
+        setInterval(async () => {
+            if (isSecure) {
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+
+                if (detections.length === 0) {
+                    faceMissingCount++;
+                    if (faceMissingCount > 2) { // 3 baar consecutive missing hone par submit (approx 6-9 sec)
+                        alert("SECURITY ALERT: No face detected! Auto-submitting...");
+                        document.getElementById("quizForm").submit();
+                    }
+                } else {
+                    faceMissingCount = 0; // Face milte hi counter reset
+                }
+            }
+        }, 3000);
+    }
+
+    // 5. Navigation & UI
     function showNext(curr) {
         document.getElementById('q-'+curr).classList.remove('active');
         document.getElementById('q-'+(curr+1)).classList.add('active');
@@ -63,9 +138,16 @@
         document.getElementById('q-'+curr).classList.remove('active');
         document.getElementById('q-'+(curr-1)).classList.add('active');
     }
-    function toggleAnswer(btn) {
+    function toggleHint(btn) {
         btn.nextElementSibling.classList.toggle('d-none');
     }
+
+    // 6. Extra Security
+    document.addEventListener("visibilitychange", () => {
+        if (isSecure && document.hidden) {
+            document.getElementById("quizForm").submit();
+        }
+    });
 </script>
 </body>
 </html>
