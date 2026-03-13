@@ -38,7 +38,9 @@ public class QuizController {
     public String showDashboard(HttpSession session, Model model) {
         User user = (User) session.getAttribute("currentUser");
         if (user == null) return "redirect:/";
+        List<User> userResults = userRepository.findByEmail(user.getEmail());
         model.addAttribute("userName", user.getName());
+        model.addAttribute("results", userResults);
         return "dashboard";
     }
 

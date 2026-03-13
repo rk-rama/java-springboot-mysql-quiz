@@ -3,20 +3,25 @@
 <head>
     <title>Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #resultSection { display: none; } /* Table pehle se hidden rahegi */
+    </style>
 </head>
 <body class="bg-light">
 <div class="container mt-5">
     <div class="text-center mb-5">
         <h1>Welcome, <span class="text-primary" th:text="${userName}">User</span>!</h1>
         <p class="lead">Select your expertise area to begin the quiz.</p>
+
+        <button class="btn btn-info mt-3" onclick="toggleResults()">View My Previous Results</button>
     </div>
+
     <div class="row g-4">
         <div class="col-md-4">
             <div class="card h-100 shadow-sm border-0">
                 <div class="card-body text-center">
-                    <div class="display-4 mb-3 text-danger"><i class="fab fa-java"></i>☕</div>
+                    <div class="display-4 mb-3 text-danger">☕</div>
                     <h4>Java Language</h4>
-                    <p class="text-muted">OOPs, Collections, Exception Handling.</p>
                     <a href="/quiz/java" class="btn btn-outline-danger w-100">Take Quiz</a>
                 </div>
             </div>
@@ -26,7 +31,6 @@
                 <div class="card-body text-center">
                     <div class="display-4 mb-3 text-success">🍃</div>
                     <h4>Spring Boot</h4>
-                    <p class="text-muted">MVC, Rest API, Annotations.</p>
                     <a href="/quiz/springboot" class="btn btn-outline-success w-100">Take Quiz</a>
                 </div>
             </div>
@@ -36,12 +40,54 @@
                 <div class="card-body text-center">
                     <div class="display-4 mb-3 text-primary">🐬</div>
                     <h4>MySQL Database</h4>
-                    <p class="text-muted">Queries, Joins, Normalization.</p>
                     <a href="/quiz/mysql" class="btn btn-outline-primary w-100">Take Quiz</a>
                 </div>
             </div>
         </div>
     </div>
+
+    <div id="resultSection" class="mt-5 mb-5">
+        <h3 class="border-bottom pb-2">Your Performance History</h3>
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-body">
+                <table class="table table-striped align-middle">
+                    <thead class="table-dark">
+                    <tr>
+                        <th>Candidate Name</th>
+                        <th>Category</th>
+                        <th>Score Achieved</th>
+                        <th>Status</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="res : ${results}">
+                        <td th:text="${res.name}">Candidate Name</td>
+                        <td th:text="${res.selectedCategory != null ? res.selectedCategory.toUpperCase() : 'N/A'}">Category</td>
+                        <td th:text="${res.score}">0</td>
+                        <td>
+                            <span th:if="${res.score >= 20}" class="badge bg-success">Passed</span>
+                            <span th:if="${res.score < 20}" class="badge bg-danger">Failed</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <button class="btn btn-secondary mt-3" onclick="toggleResults()">Hide Results</button>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+    function toggleResults() {
+        var x = document.getElementById("resultSection");
+        if (x.style.display === "none" || x.style.display === "") {
+            x.style.display = "block";
+            // Table par scroll karne ke liye
+            x.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            x.style.display = "none";
+        }
+    }
+</script>
 </body>
 </html>
